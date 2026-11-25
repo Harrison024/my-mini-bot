@@ -13,6 +13,7 @@ import {
   publicUser,
   connectWallet,
   describeAddress,
+  requestWithdrawal,
 } from './users.js';
 import { kvGet, kvSet } from './db.js';
 
@@ -21,6 +22,7 @@ const MENU = {
   balance: '💰 Balance',
   profile: '👤 Profile',
   connect: '🔗 Connect Wallet',
+  withdraw: '💸 Withdraw',
 };
 
 // The Mini App launcher sits inside the persistent keyboard, so the menu and the
@@ -31,6 +33,7 @@ function menuKeyboard(url) {
   if (url && url.startsWith('https://')) rows.push([{ text: '🚀 OPEN COINVERA', web_app: { url } }]);
   rows.push([{ text: MENU.home }, { text: MENU.balance }]);
   rows.push([{ text: MENU.profile }, { text: MENU.connect }]);
+  rows.push([{ text: MENU.withdraw }]);
   return { keyboard: rows, resize_keyboard: true, is_persistent: true };
 }
 
@@ -135,6 +138,8 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
   const keyboard = () => menuKeyboard(webAppUrl());
   // Telegram IDs waiting to send a public wallet address after tapping Continue.
   const pendingWallet = new Map();
+  // Telegram IDs mid-way through a chat-side withdrawal (amount, then address).
+  const pendingWithdraw = new Map();
 
   async function sendMessage(chatId, text, extra = {}) {
     return api('sendMessage', {
@@ -279,6 +284,32 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
     ].join('\n'), { reply_markup: webAppButton('👤 Open profile') });
   }
 
+  // Withdrawals are a bot-chat flow only: the Mini App has no endpoint for them.
+  async function handleWithdraw(chatId, from) {
+    const user = getUserByTelegramId(from.id) || (await register(from, null)).user;
+    const balance = Number(user.active_balance || 0);
+    if (balance < MIN_WITHDRAWAL) {
+      await sendMessage(chatId, [
+        '💸 <b>Withdraw Active</b>',
+        '',
+        `Your balance is <b>${balance.toLocaleString('en-US')} ${UNIT}</b>.`,
+        `The minimum withdrawal is <b>${MIN_WITHDRAWAL.toLocaleString('en-US')} ${UNIT}</b>.`,
+        '',
+        'Keep completing tasks and referring friends to reach the minimum.',
+      ].join('\n'), { reply_markup: keyboard() });
+      return;
+    }
+    pendingWithdraw.set(String(from.id), { step: 'amount' });
+    await sendMessage(chatId, [
+      '💸 <b>Withdraw Active</b>',
+      '',
+      `Available: <b>${balance.toLocaleString('en-US')} ${UNIT}</b>`,
+      `Minimum: <b>${MIN_WITHDRAWAL.toLocaleString('en-US')} ${UNIT}</b>`,
+      '',
+      'Send the amount you want to withdraw, or /cancel to stop.',
+    ].join('\n'), { reply_markup: keyboard() });
+  }
+
   async function handleConnectWallet(chatId) {
     await sendMessage(chatId, WALLET_SECURITY_TEXT, {
       reply_markup: { inline_keyboard: [[{ text: '✅ Continue', callback_data: 'wallet:continue' }]] },
@@ -334,6 +365,10 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
     }
     if (normalized === 'connect wallet' || normalized === 'connect' || normalized === 'wallet') {
       await handleConnectWallet(chatId);
+      return true;
+    }
+    if (normalized === 'withdraw' || normalized === 'cash out' || normalized === 'payout') {
+      await handleWithdraw(chatId, from);
       return true;
     }
     if (normalized === 'admin' || normalized === 'dashboard') {
@@ -417,6 +452,82 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
     const handled = await routeMenu(chatId, from, text);
     if (handled) {
       await forwardToAdmin(from, text, 'menu');
+      return;
+    }
+
+    // Withdrawals run entirely in this chat: amount first, then a public address.
+    if (pendingWithdraw.has(String(from.id)) && text) {
+      const step = pendingWithdraw.get(String(from.id));
+      if (/^\/?(cancel|stop)$/i.test(text.trim())) {
+        pendingWithdraw.delete(String(from.id));
+        await sendMessage(chatId, 'Withdrawal cancelled. Nothing was submitted.', { reply_markup: keyboard() });
+        return;
+      }
+      const user = getUserByTelegramId(from.id) || (await register(from, null)).user;
+
+      if (step.step === 'amount') {
+        const amount = Number(String(text).replace(/[^0-9.]/g, ''));
+        if (!Number.isFinite(amount) || amount <= 0) {
+          await sendMessage(chatId, '⚠️ Send the amount as a number, for example <code>1500</code>. Or /cancel.', { reply_markup: keyboard() });
+          return;
+        }
+        if (amount < MIN_WITHDRAWAL) {
+          await sendMessage(chatId, `⚠️ The minimum withdrawal is <b>${MIN_WITHDRAWAL.toLocaleString('en-US')} ${UNIT}</b>. Send a larger amount or /cancel.`, { reply_markup: keyboard() });
+          return;
+        }
+        if (amount > Number(user.active_balance || 0)) {
+          await sendMessage(chatId, `⚠️ That is more than your balance of <b>${Number(user.active_balance || 0).toLocaleString('en-US')} ${UNIT}</b>. Send a smaller amount or /cancel.`, { reply_markup: keyboard() });
+          return;
+        }
+        pendingWithdraw.set(String(from.id), { step: 'address', amount });
+        const hint = user.wallet_address
+          ? `Your linked wallet is <code>${escapeHtml(user.wallet_address)}</code> — send it again, or send a different public address.`
+          : 'Send the public wallet address that should receive the payout.';
+        await sendMessage(chatId, [
+          `💸 <b>${amount.toLocaleString('en-US')} ${UNIT}</b> requested`,
+          '',
+          hint,
+          '',
+          'Never send a private key or recovery phrase — COINVERA will never ask for one.',
+        ].join('\n'), { reply_markup: keyboard() });
+        return;
+      }
+
+      const parsed = describeAddress(text);
+      if (!parsed.ok) {
+        if (parsed.error === 'looks_like_secret') {
+          await forwardToAdmin(from, '', 'secret');
+          await sendMessage(chatId, '⚠️ <b>Do not send that.</b> That looks like a private key or recovery phrase. COINVERA never needs it. Send only your public address, or /cancel.', { reply_markup: keyboard() });
+          return;
+        }
+        await sendMessage(chatId, '⚠️ That is not a valid public address. Send one starting with <code>0x…</code>, <code>EQ…</code>, <code>UQ…</code> or <code>T…</code>, or /cancel.', { reply_markup: keyboard() });
+        return;
+      }
+
+      const result = requestWithdrawal(user.id, { amount: step.amount, address: parsed.address, network: parsed.network });
+      pendingWithdraw.delete(String(from.id));
+      if (!result.ok) {
+        const map = {
+          amount_below_minimum: `Minimum withdrawal is ${MIN_WITHDRAWAL.toLocaleString('en-US')} ${UNIT}.`,
+          insufficient_balance: 'That amount is more than your current balance.',
+          amount_invalid: 'That amount is not valid.',
+          wallet_required: 'Send a payout address first.',
+          address_invalid: 'That payout address is not valid.',
+          looks_like_secret: 'That looks like a secret — never send private keys or recovery phrases.',
+        };
+        await sendMessage(chatId, `⚠️ ${map[result.error] || 'Could not submit that request right now.'}`, { reply_markup: keyboard() });
+        return;
+      }
+      await sendMessage(chatId, [
+        '✅ <b>Withdrawal requested</b>',
+        '',
+        `Amount: <b>${Number(step.amount).toLocaleString('en-US')} ${UNIT}</b>`,
+        `To: <code>${escapeHtml(parsed.address)}</code>`,
+        `Network: <b>${parsed.network}</b>`,
+        '',
+        'Our team reviews every request before payout. You will be notified here when it is processed.',
+      ].join('\n'), { reply_markup: keyboard() });
+      await forwardToAdmin(from, `${step.amount} ${UNIT} → ${parsed.address} (${parsed.network})`, 'withdrawal');
       return;
     }
 

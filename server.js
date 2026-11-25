@@ -20,8 +20,6 @@ const {
   UNIT,
   addSupportMessage,
   claimTask,
-  connectWallet,
-  disconnectWallet,
   getActivity,
   getAdminStats,
   getOrCreateUser,
@@ -31,7 +29,6 @@ const {
   isAdminUser,
   listTasks,
   publicUser,
-  requestWithdrawal,
 } = await load('users.js');
 
 const publicDir = fs.existsSync(path.join(rootDir, 'public', 'index.html'))
@@ -277,6 +274,8 @@ function sessionPayload(user, preview) {
       unit: UNIT,
       minWithdrawal: MIN_WITHDRAWAL,
       botUsername: kvGet('bot_username'),
+      // Wallet linking and withdrawals live in the bot chat, never in the Mini App.
+      botUrl: kvGet('bot_username') ? `https://t.me/${kvGet('bot_username')}` : null,
       preview,
       adminTelegramId: ADMIN_TELEGRAM_ID,
     },
@@ -320,28 +319,6 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, { ok: true, awarded: result.points, ...sessionPayload(result.user, auth.preview) });
   }
 
-  if (route === 'POST /api/wallet/connect') {
-    const auth = requireUser(req, url, res);
-    if (!auth) return undefined;
-    const body = await readJson(req);
-    const result = connectWallet(auth.user.id, { address: body.address, network: body.network });
-    if (!result.ok) return sendJson(res, 400, { ok: false, error: result.error });
-    notifyAdmin([
-      '🔗 <b>Wallet linked</b>',
-      `User: ${userLabel(auth.user)}`,
-      `Address: <code>${escapeHtml(String(body.address || ''))}</code>`,
-      `Network: <b>${escapeHtml(String(body.network || 'unknown'))}</b>`,
-    ]);
-    return sendJson(res, 200, { ok: true, ...sessionPayload(result.user, auth.preview) });
-  }
-
-  if (route === 'POST /api/wallet/disconnect') {
-    const auth = requireUser(req, url, res);
-    if (!auth) return undefined;
-    const result = disconnectWallet(auth.user.id);
-    return sendJson(res, 200, { ok: true, ...sessionPayload(result.user, auth.preview) });
-  }
-
   if (route === 'POST /api/support') {
     const auth = requireUser(req, url, res);
     if (!auth) return undefined;
@@ -349,19 +326,6 @@ async function handleApi(req, res, url) {
     const result = addSupportMessage(auth.user.id, body.message);
     if (!result.ok) return sendJson(res, 400, { ok: false, error: result.error });
     return sendJson(res, 200, { ok: true });
-  }
-
-  if (route === 'POST /api/withdrawal') {
-    const auth = requireUser(req, url, res);
-    if (!auth) return undefined;
-    const body = await readJson(req);
-    const result = requestWithdrawal(auth.user.id, {
-      amount: body.amount,
-      address: body.address,
-      network: body.network,
-    });
-    if (!result.ok) return sendJson(res, 400, { ok: false, error: result.error });
-    return sendJson(res, 200, { ok: true, ...sessionPayload(result.user, auth.preview) });
   }
 
   if (route === 'GET /api/admin') {
