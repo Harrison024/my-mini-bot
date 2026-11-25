@@ -67,13 +67,6 @@ check('below minimum rejected', belowMin.ok === false && belowMin.error === 'amo
 const tooMuch = users.requestWithdrawal(user.id, { amount: 99999999, address: ADDRESS, network: 'EVM' });
 check('over balance rejected', tooMuch.ok === false && tooMuch.error === 'insufficient_balance', tooMuch.error);
 
-const noAddress = users.requestWithdrawal(user.id, { amount: MIN_WITHDRAWAL, address: '', network: 'EVM' });
-check(
-  'missing payout address rejected',
-  noAddress.ok === false && ['address_missing', 'wallet_required', 'address_invalid'].includes(noAddress.error),
-  noAddress.error,
-);
-
 const before = users.getUserById(user.id);
 if (Number(before.active_balance) >= MIN_WITHDRAWAL) {
   const good = users.requestWithdrawal(user.id, { amount: MIN_WITHDRAWAL, address: ADDRESS, network: 'EVM' });
@@ -87,9 +80,13 @@ if (Number(before.active_balance) >= MIN_WITHDRAWAL) {
   console.log(`  skip  valid request — balance ${before.active_balance} is below the ${MIN_WITHDRAWAL} ${UNIT} minimum`);
 }
 
-console.log('[3] the bot can unlink a wallet');
+console.log('[3] a payout needs an address from the chat');
 const off = users.disconnectWallet(user.id);
 check('wallet unlinked', off.ok === true && off.user.wallet_address === null);
+
+// With no linked wallet and no address typed in the chat there is nowhere to pay.
+const noAddress = users.requestWithdrawal(user.id, { amount: MIN_WITHDRAWAL, address: '', network: 'EVM' });
+check('missing payout address rejected', noAddress.ok === false && noAddress.error === 'wallet_required', noAddress.error);
 
 fs.rmSync(dataDir, { recursive: true, force: true });
 
