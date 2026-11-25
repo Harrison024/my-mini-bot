@@ -1,11 +1,20 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { verifyInitData } from './src/auth.js';
-import { kvGet, kvSet } from './src/db.js';
-import { createBot, escapeHtml } from './src/bot.js';
-import {
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const rootDir = path.dirname(fileURLToPath(import.meta.url));
+
+// The app ships as server.js plus src/*.js, but some hosts and older checkouts
+// keep a flat copy where the modules sit next to server.js. Resolve whichever
+// layout is really on disk instead of dying with ERR_MODULE_NOT_FOUND.
+const srcDir = fs.existsSync(path.join(rootDir, 'src', 'auth.js')) ? path.join(rootDir, 'src') : rootDir;
+const load = (file) => import(pathToFileURL(path.join(srcDir, file)).href);
+
+const { verifyInitData } = await load('auth.js');
+const { kvGet, kvSet } = await load('db.js');
+const { createBot, escapeHtml } = await load('bot.js');
+const {
   ADMIN_TELEGRAM_ID,
   MIN_WITHDRAWAL,
   UNIT,
@@ -23,10 +32,11 @@ import {
   listTasks,
   publicUser,
   requestWithdrawal,
-} from './src/users.js';
+} = await load('users.js');
 
-const rootDir = path.dirname(fileURLToPath(import.meta.url));
-const publicDir = path.join(rootDir, 'public');
+const publicDir = fs.existsSync(path.join(rootDir, 'public', 'index.html'))
+  ? path.join(rootDir, 'public')
+  : rootDir;
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
 const BOT_TOKEN = String(
