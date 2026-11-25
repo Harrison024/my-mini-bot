@@ -11,7 +11,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node smoke-test.js",
-    "test:node26": "npx -y node@26 smoke-test.js"
+    "test": "node scripts/smoke-test.js",
+    "test:layout": "node scripts/flat-layout-test.js",
+    "test:node26": "npx -y node@26 scripts/smoke-test.js",
+    "test:all": "npx -y node@26 scripts/smoke-test.js && npx -y node@26 scripts/flat-layout-test.js"
   }
 }
