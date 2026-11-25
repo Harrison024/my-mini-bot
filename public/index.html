@@ -63,7 +63,7 @@
         <div class="hero-value"><span id="home-balance">0</span><span class="unit">ACTIVE</span></div>
         <p class="hero-sub"><span id="home-points">0</span> Active Points earned</p>
         <div class="hero-actions">
-          <button class="btn gold" type="button" data-go="balance">Withdraw</button>
+          <a class="btn gold" href="https://t.me/CoinveraOfficialBot" target="_blank" rel="noopener" data-bot-link>Withdraw in bot</a>
           <button class="btn ghost" type="button" data-go="tasks">Earn more</button>
         </div>
       </div>
@@ -103,9 +103,9 @@
 
       <div class="card hero compact">
         <div class="hero-value"><span id="balance-value">0</span><span class="unit">ACTIVE</span></div>
-        <p class="hero-sub">Available to withdraw</p>
+        <p class="hero-sub">Withdraw in the bot</p>
         <div class="hero-actions">
-          <button class="btn gold" type="button" id="withdraw-open">Request withdrawal</button>
+          <a class="btn gold" href="https://t.me/CoinveraOfficialBot" target="_blank" rel="noopener" data-bot-link>Open the bot to withdraw</a>
         </div>
       </div>
 
@@ -124,7 +124,7 @@
         <ul class="list" id="balance-activity"></ul>
       </div>
 
-      <p class="fineprint">Withdrawals are paid to the wallet address you link. COINVERA never asks for a private key, password or recovery phrase.</p>
+      <p class="fineprint">Wallet linking and withdrawals happen in the COINVERA bot chat — tap “Withdraw in bot”. COINVERA never asks for a private key, password or recovery phrase.</p>
     </section>
 
     <section class="view" id="view-tasks" hidden>
@@ -188,7 +188,7 @@
           <li><span>Active Points</span><b id="profile-points">0</b></li>
           <li><span>Referral code</span><b id="profile-code">—</b></li>
           <li><span>Joined</span><b id="profile-joined">—</b></li>
-          <li><span>Wallet</span><b id="profile-wallet">Not linked</b></li>
+          <li><span>Wallet</span><b id="profile-wallet">Link in the bot</b></li>
         </ul>
       </div>
 
@@ -243,28 +243,6 @@
 </nav>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-<div class="sheet-wrap hidden" id="withdraw-sheet">
-  <div class="sheet-backdrop" data-close-sheet></div>
-  <form class="sheet" id="withdraw-form">
-    <div class="sheet-grab"></div>
-    <h3>Request withdrawal</h3>
-    <p class="lead" id="withdraw-hint">Minimum 1,000 Active.</p>
-    <label class="field">
-      <span>Amount (Active)</span>
-      <input id="withdraw-amount" type="number" min="0" step="50" inputmode="decimal" placeholder="1000" required />
-    </label>
-    <label class="field">
-      <span>Payout wallet address</span>
-      <input id="withdraw-address" type="text" autocomplete="off" spellcheck="false" placeholder="0x… / EQ… / UQ… / T…" />
-    </label>
-    <div class="sheet-actions">
-      <button class="btn ghost" type="button" data-close-sheet>Cancel</button>
-      <button class="btn gold" type="submit" id="withdraw-submit">Submit request</button>
-    </div>
-    <p class="fineprint">Requests are reviewed by the COINVERA team before payout. We never ask for a private key or recovery phrase.</p>
-  </form>
-</div>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="app.js" type="module"></script>

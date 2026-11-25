@@ -368,14 +368,16 @@ function render() {
   $('profile-joined').textContent = shortDate(user.joinedAt);
   $('profile-wallet').textContent = user.walletAddress
     ? `${user.walletAddress.slice(0, 6)}…${user.walletAddress.slice(-4)}`
-    : 'Not linked';
+    : 'Link in the bot';
   $('profile-admin').classList.toggle('hidden', !user.isAdmin);
 
-  // withdrawal sheet hint
-  $('withdraw-hint').textContent = `Minimum ${fmt(config.minWithdrawal)} Active. Available ${fmt(user.activeBalance)} Active.`;
-  const amountInput = $('withdraw-amount');
-  amountInput.max = String(user.activeBalance);
-  if (!$('withdraw-address').value && user.walletAddress) $('withdraw-address').value = user.walletAddress;
+  // Wallet linking and withdrawals live in the bot chat, so the Mini App only
+  // points at the bot — it never collects an address or a payout request.
+  const botUrl = config.botUrl || (config.botUsername ? `https://t.me/${config.botUsername}` : '');
+  document.querySelectorAll('[data-bot-link]').forEach((el) => {
+    if (botUrl) el.setAttribute('href', botUrl);
+    el.classList.toggle('hidden', !botUrl);
+  });
 
   if (user.isAdmin) renderAdmin();
 }
@@ -431,46 +433,6 @@ async function claimTask(code, button) {
   }
 }
 
-async function submitWithdrawal(event) {
-  event.preventDefault();
-  if (state.busy) return;
-  const amount = Number($('withdraw-amount').value);
-  const address = $('withdraw-address').value.trim();
-  state.busy = true;
-  $('withdraw-submit').disabled = true;
-  try {
-    const result = await api('/api/withdrawal', { method: 'POST', body: { amount, address } });
-    state.data = result;
-    closeSheet();
-    $('withdraw-form').reset();
-    render();
-    haptic('success');
-    toast('Withdrawal requested. Our team reviews requests before payout.');
-  } catch (error) {
-    const map = {
-      amount_below_minimum: `Minimum withdrawal is ${fmt(state.data.config.minWithdrawal)} Active.`,
-      insufficient_balance: 'Amount exceeds your Active balance.',
-      amount_invalid: 'Enter a valid amount.',
-      wallet_required: 'Add a payout address or link your wallet first.',
-      address_invalid: 'That payout address is not valid.',
-      looks_like_secret: 'That looks like a private key or recovery phrase — never share those.',
-    };
-    haptic('error');
-    toast(map[error.message] || 'Could not submit that request.', true);
-  } finally {
-    state.busy = false;
-    $('withdraw-submit').disabled = false;
-  }
-}
-
-function openSheet() {
-  $('withdraw-sheet').classList.remove('hidden');
-}
-
-function closeSheet() {
-  $('withdraw-sheet').classList.add('hidden');
-}
-
 async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);
@@ -519,17 +481,9 @@ function wireEvents() {
   document.querySelectorAll('[data-tab]').forEach((tab) => {
     tab.addEventListener('click', () => showView(tab.dataset.tab));
   });
-  document.querySelectorAll('[data-close-sheet]').forEach((el) => {
-    el.addEventListener('click', closeSheet);
-  });
   $('back-btn').addEventListener('click', () => showView('home'));
-  $('withdraw-open').addEventListener('click', openSheet);
-  $('withdraw-form').addEventListener('submit', submitWithdrawal);
   $('copy-code').addEventListener('click', copyCode);
   $('share-code').addEventListener('click', shareCode);
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeSheet();
-  });
 }
 
 async function boot() {
