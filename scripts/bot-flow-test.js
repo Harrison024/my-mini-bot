@@ -35,7 +35,8 @@ function check(name, ok, detail = '') {
   console.log(`  FAIL ${name}${detail ? ` — ${detail}` : ''}`);
 }
 
-const user = users.getOrCreateUser({ id: '990001', first_name: 'Bot', username: 'botflow' });
+const created = users.getOrCreateUser({ id: '990001', first_name: 'Bot', username: 'botflow' });
+const user = created.user;
 check('test user created', Boolean(user && user.id));
 
 console.log('[1] wallet linking happens in the bot chat');
