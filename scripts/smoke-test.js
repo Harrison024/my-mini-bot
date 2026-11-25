@@ -134,47 +134,25 @@ try {
   const gated = await api('/api/tasks/claim', { method: 'POST', body: { code: 'connect_wallet' } });
   check('wallet task blocked until wallet linked', gated.status === 400 && gated.data?.error === 'requirement_wallet', gated.data?.error);
 
-  console.log('\n[5] wallet linking is read-only and rejects secrets');
-  const badAddress = await api('/api/wallet/connect', { method: 'POST', body: { address: 'not-a-wallet', network: 'EVM' } });
-  check('invalid address rejected', badAddress.status === 400 && badAddress.data?.error === 'address_invalid', badAddress.data?.error);
-
-  const secretKey = await api('/api/wallet/connect', {
-    method: 'POST',
-    body: { address: 'a'.repeat(64), network: 'EVM' },
-  });
-  check('private-key-shaped input rejected', secretKey.status === 400 && secretKey.data?.error === 'looks_like_secret', secretKey.data?.error);
-
-  const phrase = await api('/api/wallet/connect', {
-    method: 'POST',
-    body: { address: 'legal winner thank year wave sausage worth useful legal winner thank yellow', network: 'EVM' },
-  });
-  check('recovery phrase rejected', phrase.status === 400 && phrase.data?.error === 'looks_like_secret', phrase.data?.error);
-
+  console.log('\n[5] wallet linking is bot-only (no Mini App endpoint)');
   const address = '0x' + '1'.repeat(40);
-  const linked = await api('/api/wallet/connect', { method: 'POST', body: { address, network: 'EVM' } });
-  check('valid public address accepted', linked.status === 200 && linked.data?.user?.walletAddress === address, `status ${linked.status}`);
-  check('network stored', linked.data?.user?.walletNetwork === 'EVM');
-  check('no secret material stored', !JSON.stringify(linked.data).includes('private'));
+  const appConnect = await api('/api/wallet/connect', { method: 'POST', body: { address, network: 'EVM' } });
+  check('mini app wallet connect endpoint removed', appConnect.status === 404, `status ${appConnect.status}`);
 
-  const walletTask = await api('/api/tasks/claim', { method: 'POST', body: { code: 'connect_wallet' } });
-  check('wallet task claimable after linking', walletTask.status === 200, walletTask.data?.error);
+  const appDisconnect = await api('/api/wallet/disconnect', { method: 'POST' });
+  check('mini app wallet disconnect endpoint removed', appDisconnect.status === 404, `status ${appDisconnect.status}`);
 
-  const unlinked = await api('/api/wallet/disconnect', { method: 'POST' });
-  check('wallet disconnect works', unlinked.status === 200 && unlinked.data?.user?.walletAddress === null);
-  check('balance untouched by disconnect', unlinked.data?.user?.activeBalance === user?.activeBalance);
-  const relinked = await api('/api/wallet/connect', { method: 'POST', body: { address, network: 'EVM' } });
-  check('wallet relink works', relinked.status === 200 && relinked.data?.user?.walletAddress === address);
+  const afterConnect = await api('/api/session');
+  check('no wallet stored from the app', !afterConnect.data?.user?.walletAddress, String(afterConnect.data?.user?.walletAddress));
+  check('wallet task stays locked until the bot links it', (afterConnect.data?.tasks || []).find((t) => t.code === 'connect_wallet')?.completed === false);
+  check('session exposes the bot link for the UI', Object.prototype.hasOwnProperty.call(afterConnect.data?.config || {}, 'botUrl'), 'config.botUrl missing');
 
-  console.log('\n[6] withdrawals');
-  const belowMin = await api('/api/withdrawal', { method: 'POST', body: { amount: 10, address } });
-  check('below minimum rejected', belowMin.status === 400 && belowMin.data?.error === 'amount_below_minimum', belowMin.data?.error);
+  console.log('\n[6] withdrawals are bot-only (no Mini App endpoint)');
+  const appWithdraw = await api('/api/withdrawal', { method: 'POST', body: { amount: 1000, address } });
+  check('mini app withdrawal endpoint removed', appWithdraw.status === 404, `status ${appWithdraw.status}`);
 
-  const tooMuch = await api('/api/withdrawal', { method: 'POST', body: { amount: 999999, address } });
-  check('over balance rejected', tooMuch.status === 400 && tooMuch.data?.error === 'insufficient_balance', tooMuch.data?.error);
-
-  const good = await api('/api/withdrawal', { method: 'POST', body: { amount: 1000, address } });
-  check('valid withdrawal accepted', good.status === 200, good.data?.error);
-  check('balance debited', good.data?.user?.activeBalance === user.activeBalance - 1000, String(good.data?.user?.activeBalance));
+  const afterWithdraw = await api('/api/session');
+  check('blocked request did not move the balance', afterWithdraw.data?.user?.activeBalance === afterConnect.data?.user?.activeBalance, String(afterWithdraw.data?.user?.activeBalance));
 
   console.log('\n[7] support messages');
   const emptySupport = await api('/api/support', { method: 'POST', body: { message: '   ' } });
@@ -187,10 +165,10 @@ try {
   check('admin endpoint 200 for admin id', admin.status === 200, `status ${admin.status}`);
   check('total users counted', admin.data?.admin?.totalUsers === 1, String(admin.data?.admin?.totalUsers));
   check('registrations today counted', admin.data?.admin?.registrationsToday === 1);
-  check('tasks completed counted', admin.data?.admin?.tasksCompleted === 2, String(admin.data?.admin?.tasksCompleted));
-  check('rewards issued counted', admin.data?.admin?.rewardsIssued >= 2, String(admin.data?.admin?.rewardsIssued));
+  check('tasks completed counted', admin.data?.admin?.tasksCompleted === 1, String(admin.data?.admin?.tasksCompleted));
+  check('rewards issued counted', admin.data?.admin?.rewardsIssued >= 1, String(admin.data?.admin?.rewardsIssued));
   check('support messages counted', admin.data?.admin?.supportMessages === 1, String(admin.data?.admin?.supportMessages));
-  check('pending withdrawals counted', admin.data?.admin?.pendingWithdrawals === 1, String(admin.data?.admin?.pendingWithdrawals));
+  check('no withdrawals from the app', admin.data?.admin?.pendingWithdrawals === 0, String(admin.data?.admin?.pendingWithdrawals));
   check('session exposes admin block', Boolean(first.data?.admin) === false || Boolean(second.data?.admin));
   check('admin id configured', second.data?.config?.adminTelegramId === '8463629333', second.data?.config?.adminTelegramId);
 
