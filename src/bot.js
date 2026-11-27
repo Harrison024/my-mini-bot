@@ -67,8 +67,9 @@ const WELCOME_TEXT = [
   'Tap the button below to open your dashboard.',
 ].join('\n');
 
-export function createBot({ token, getWebAppUrl, log = console.log }) {
+export function createBot({ token, getWebAppUrl, getVerifiedOrigin, webhookWaitMs = 30000, log = console.log }) {
   const base = `https://api.telegram.org/bot${token}`;
+  const verifiedOrigin = typeof getVerifiedOrigin === 'function' ? getVerifiedOrigin : () => null;
   // A webhook beats a competing getUpdates poller: Telegram answers 409 to every
   // other copy and delivers the updates here instead. That is the only way to win
   // the token back when another host still polls the same BOT_TOKEN.
@@ -629,9 +630,19 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
   }
 
   async function registerWebhook() {
-    const url = webAppUrl();
-    if (!/^https:\/\//i.test(url)) {
-      log(`[bot] webhook skipped — public URL is not https (${url}); staying on polling`);
+    // Only a verified origin may become the webhook target. The observed origin is
+    // written by the platform's first request, so wait briefly for it instead of
+    // falling back to a default: a guessed address once pointed Telegram at a dead
+    // domain and silenced the bot completely.
+    let url = null;
+    const deadline = Date.now() + Math.max(0, webhookWaitMs);
+    while (!url && Date.now() < deadline) {
+      url = verifiedOrigin();
+      if (!url) await sleep(Math.min(1000, Math.max(50, Math.floor(webhookWaitMs / 10) || 50)));
+    }
+    if (!url || !/^https:\/\//i.test(url)) {
+      log('[bot] no verified public URL yet — clearing any webhook and staying on polling');
+      await api('deleteWebhook', { drop_pending_updates: false });
       return false;
     }
     const target = `${url.replace(/\/+$/, '')}${webhookPath}`;
@@ -656,8 +667,9 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
 
   async function start() {
     running = true;
-    // Webhook delivery is attempted once per process; a failure keeps the polling loop.
-    let webhookTried = false;
+    // Retried while polling, so a late public origin or a temporary Telegram failure
+    // still ends up on webhook delivery.
+    let nextWebhookTry = 0;
     while (running) {
       if (!botUsername || identityError) {
         const ok = await loadIdentity();
@@ -676,8 +688,8 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
         const hook = await api('deleteWebhook', { drop_pending_updates: false });
         if (hook.ok) log('[bot] webhook cleared — this deployment owns the updates');
       }
-      if (!webhookTried) {
-        webhookTried = true;
+      if (mode !== 'webhook' && Date.now() >= nextWebhookTry) {
+        nextWebhookTry = Date.now() + 5 * 60 * 1000;
         if (await registerWebhook()) {
           mode = 'webhook';
           log('[bot] delivery mode: webhook — updates arrive on /api/telegram/webhook');

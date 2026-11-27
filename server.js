@@ -80,7 +80,7 @@ function publicOrigin(req) {
 // Last-resort public address: a fresh database has not seen a request yet, and a
 // web_app button pointing at localhost is exactly what makes Telegram refuse to
 // open the Mini App. Override it with WEBAPP_URL (or PUBLIC_URL) at any time.
-const DEFAULT_WEBAPP_URL = 'https://to8bdtjvqf.dev.onappjet.com';
+const DEFAULT_WEBAPP_URL = 'https://b5rvefh3r5.dev.ap-jt.com';
 
 function getWebAppUrl() {
   const configured = (process.env.WEBAPP_URL || process.env.PUBLIC_URL || '').trim();
@@ -92,6 +92,19 @@ function getWebAppUrl() {
   // Drop a value poisoned by an internal probe so it is never advertised again.
   if (observed) kvSet('public_origin', '');
   return DEFAULT_WEBAPP_URL;
+}
+
+// The webhook may only be pointed at an address we have actually been reached on.
+// Unlike getWebAppUrl this never falls back to a guess: a wrong webhook silently
+// swallows every update instead of failing loudly.
+function getVerifiedWebAppUrl() {
+  const configured = (process.env.WEBAPP_URL || process.env.PUBLIC_URL || '').trim();
+  if (configured) return configured.replace(/\/+$/, '');
+  const observed = kvGet('public_origin');
+  if (observed && observed.startsWith('https://') && isPublicHost(observed.replace(/^https:\/\//, ''))) {
+    return observed.replace(/\/+$/, '');
+  }
+  return null;
 }
 
 function rememberOrigin(req) {
@@ -422,7 +435,7 @@ server.listen(PORT, HOST, () => {
 
 let bot = null;
 if (BOT_TOKEN) {
-  bot = createBot({ token: BOT_TOKEN, getWebAppUrl });
+  bot = createBot({ token: BOT_TOKEN, getWebAppUrl, getVerifiedOrigin: getVerifiedWebAppUrl });
   bot.start().catch((error) => console.error('[bot] fatal', error.message || error));
 } else {
   console.log('[coinvera] BOT_TOKEN not set — bot polling disabled, Mini App runs in preview mode');
