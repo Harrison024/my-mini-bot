@@ -110,7 +110,7 @@ function activityRow(item) {
   } else {
     const isPoints = item.unit === 'POINTS';
     value.className = `row-value ${isPoints ? 'pos' : 'neg'}`;
-    value.textContent = isPoints ? `+${fmt(item.amount)} pts` : `+${fmt(item.amount)} Active`;
+    value.textContent = isPoints ? `+${fmt(item.amount)} pts` : `+${fmt(item.amount)} USD`;
   }
   li.append(main, value);
   return li;
