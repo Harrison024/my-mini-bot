@@ -62,7 +62,6 @@ const WELCOME_TEXT = [
   '💰 <b>Active balance</b> credited on activation',
   '🎯 <b>Tasks</b> that pay Active Points',
   '🤝 <b>Referrals</b> with a personal invite code',
-  '🔐 <b>Read-only wallet</b> linking — your keys never leave your wallet',
   '',
   'Tap the button below to open your dashboard.',
 ].join('\n');
@@ -197,19 +196,19 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
     if (result.isNew) {
       lines.push(
         '🎉 <b>Congratulations, your account is activated!</b>',
-        `A welcome balance of <b>${result.bonus.toLocaleString('en-US')} ${UNIT}</b> has been added to your COINVERA account.`,
+        `A welcome balance of <b>${result.bonus.toLocaleString('en-US')} ${USD}</b> has been added to your COINVERA account.`,
       );
     } else {
       lines.push('👋 <b>Welcome back to COINVERA</b>');
     }
     lines.push(
       '',
-      `💎 Active balance: <b>${Number(user.active_balance).toLocaleString('en-US', { minimumFractionDigits: 2 })} ${UNIT}</b>`,
-      `⭐ Active Points: <b>${user.points.toLocaleString('en-US')}</b>`,
+      `💎 Active balance: <b>${Number(user.active_balance).toLocaleString('en-US', { minimumFractionDigits: 2 })} ${USD}</b>`,
+      `⭐ Active USD: <b>${user.points.toLocaleString('en-US')}</b>`,
       `🆔 Telegram ID: <code>${escapeHtml(String(user.telegram_id))}</code>`,
       `🔑 Referral code: <code>${user.referral_code}</code>`,
       '',
-      'Active is your reward balance: it becomes withdrawable once you meet the activity requirement, and payout requests are reviewed before they are sent to your connected wallet.',
+      'Active is your reward balance: it becomes withdrawable once you've created an account with us, meet the requirements and payout requests,then it would be reviewed before they are sent to your connected wallet.',
       '',
       `🔗 <b>Open COINVERA:</b> <a href="${webAppUrl()}">${webAppUrl()}</a>`,
       '<i>If the button does not open, tap the link above — it works in every Telegram version.</i>',
@@ -231,11 +230,10 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
     await sendMessage(chatId, [
       '🏠 <b>COINVERA Home</b>',
       '',
-      `💎 Active balance: <b>${Number(user.active_balance).toLocaleString('en-US', { minimumFractionDigits: 2 })} ${UNIT}</b>`,
-      `⭐ Active Points: <b>${user.points.toLocaleString('en-US')}</b>`,
+      `💎 Active balance: <b>${Number(user.active_balance).toLocaleString('en-US', { minimumFractionDigits: 2 })} ${USD}</b>`,
+      `⭐ Active USD: <b>${user.points.toLocaleString('en-US')}</b>`,
       `🎯 Tasks completed: <b>${summary.tasksCompleted}</b>`,
       `🤝 Successful referrals: <b>${referrals.count}</b>`,
-      `🔐 Wallet: ${user.wallet_address ? `<code>${shortAddress(user.wallet_address)}</code>` : '<i>not connected</i>'}`,
       '',
       'Open the dashboard for tasks, referrals and your wallet.',
     ].join('\n'), { reply_markup: webAppButton() });
@@ -251,9 +249,9 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
       `<b>${Number(user.active_balance).toLocaleString('en-US', { minimumFractionDigits: 2 })} ${UNIT}</b>`,
       '',
       `⭐ Active Points: <b>${user.points.toLocaleString('en-US')}</b>`,
-      `🔓 Withdrawable from: <b>${MIN_WITHDRAWAL.toLocaleString('en-US')} ${UNIT}</b>`,
+      `🔓 Withdrawable from: <b>${MIN_WITHDRAWAL.toLocaleString('en-US')} ${USD}</b>`,
       '',
-      'Active is a COINVERA reward unit, not fiat currency. Withdrawal requests are reviewed and paid to your connected wallet.',
+      'your active COINVERA USD reward is a withdrawable currency. meet up the connect wallet requirements and your Withdrawal requests will be reviewed and paid to your connected wallet.',
     ];
     if (activity.length) {
       lines.push('', '<b>Recent activity</b>');
@@ -278,7 +276,6 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
       '',
       `🔑 Referral code: <code>${user.referral_code}</code>`,
       `🔗 Invite link: ${escapeHtml(referralLink(user.referral_code))}`,
-      `🔐 Wallet: ${user.wallet_address ? `<code>${escapeHtml(user.wallet_address)}</code>` : '<i>not connected</i>'}`,
       '',
       'Everything is stored against your Telegram ID, so your balance follows you across devices.',
     ].join('\n'), { reply_markup: webAppButton('👤 Open profile') });
