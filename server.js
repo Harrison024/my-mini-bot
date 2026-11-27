@@ -298,6 +298,23 @@ async function handleApi(req, res, url) {
     });
   }
 
+  // Telegram delivers updates here once the webhook is registered. The secret
+  // header is what proves the request really came from Telegram.
+  if (req.method === 'POST' && url.pathname === '/api/telegram/webhook') {
+    if (!bot) return sendJson(res, 503, { ok: false, error: 'bot_not_configured' });
+    if (!bot.verifyWebhookSecret(req.headers['x-telegram-bot-api-secret-token'])) {
+      return sendJson(res, 401, { ok: false, error: 'bad_secret' });
+    }
+    const update = await readJson(req);
+    try {
+      await bot.handleUpdate(update);
+    } catch (error) {
+      // Answer 200 anyway: a non-2xx makes Telegram replay the same broken update.
+      console.error('[bot] webhook handler error', error.message || error);
+    }
+    return sendJson(res, 200, { ok: true });
+  }
+
   if (route === 'GET /api/session') {
     const auth = requireUser(req, url, res);
     if (!auth) return undefined;

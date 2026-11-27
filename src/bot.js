@@ -15,6 +15,7 @@ import {
   describeAddress,
   requestWithdrawal,
 } from './users.js';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { kvGet, kvSet } from './db.js';
 
 const MENU = {
@@ -68,6 +69,11 @@ const WELCOME_TEXT = [
 
 export function createBot({ token, getWebAppUrl, log = console.log }) {
   const base = `https://api.telegram.org/bot${token}`;
+  // A webhook beats a competing getUpdates poller: Telegram answers 409 to every
+  // other copy and delivers the updates here instead. That is the only way to win
+  // the token back when another host still polls the same BOT_TOKEN.
+  const webhookPath = '/api/telegram/webhook';
+  const webhookSecret = createHash('sha256').update(`coinvera-webhook:${token}`).digest('hex').slice(0, 48);
   // Resuming from the stored offset is what stops a restart or redeploy from
   // replaying updates that were already answered — the classic cause of a button
   // producing the same reply twice.
@@ -80,6 +86,8 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
   let lastErrorCode = null;
   let rateLimitUntil = 0;
   let floodStrikes = 0;
+  // 'webhook' once Telegram accepts our endpoint, 'polling' otherwise.
+  let mode = 'polling';
 
   async function api(method, payload = {}, timeoutMs = 20000) {
     // Single gate shared by every caller: while Telegram is throttling this bot,
@@ -614,8 +622,42 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
   // Guards the 409 recovery below so a stuck competitor cannot make us hammer Telegram.
   let lastConflictFix = 0;
 
+  function verifyWebhookSecret(value) {
+    const given = Buffer.from(String(value || ''));
+    const expected = Buffer.from(webhookSecret);
+    return given.length === expected.length && timingSafeEqual(given, expected);
+  }
+
+  async function registerWebhook() {
+    const url = webAppUrl();
+    if (!/^https:\/\//i.test(url)) {
+      log(`[bot] webhook skipped — public URL is not https (${url}); staying on polling`);
+      return false;
+    }
+    const target = `${url.replace(/\/+$/, '')}${webhookPath}`;
+    const result = await api('setWebhook', {
+      url: target,
+      secret_token: webhookSecret,
+      allowed_updates: ['message', 'callback_query'],
+      drop_pending_updates: false,
+    });
+    if (!result.ok) {
+      log(`[bot] webhook registration failed: ${result.description || 'unknown'} — staying on polling`);
+      return false;
+    }
+    log(`[bot] webhook registered → ${target}`);
+    const info = await api('getWebhookInfo', {});
+    if (info.ok) {
+      const last = info.result?.last_error_message;
+      log(`[bot] webhook info: url=${info.result?.url || '-'} pending=${info.result?.pending_update_count ?? '?'}${last ? ` lastError=${last}` : ''}`);
+    }
+    return true;
+  }
+
   async function start() {
     running = true;
+    // Webhook delivery is attempted once per process; a failure keeps the polling loop.
+    let webhookTried = false;
     while (running) {
       if (!botUsername || identityError) {
         const ok = await loadIdentity();
@@ -633,6 +675,14 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
         // A webhook left behind by another host would compete for these updates.
         const hook = await api('deleteWebhook', { drop_pending_updates: false });
         if (hook.ok) log('[bot] webhook cleared — this deployment owns the updates');
+      }
+      if (!webhookTried) {
+        webhookTried = true;
+        if (await registerWebhook()) {
+          mode = 'webhook';
+          log('[bot] delivery mode: webhook — updates arrive on /api/telegram/webhook');
+          return;
+        }
       }
       const response = await api('getUpdates', { offset, timeout: 25, allowed_updates: ['message', 'callback_query'] }, 35000);
       if (!response.ok) {
@@ -681,13 +731,24 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
     // retry loop is alive; an unverified identity means the bot is not online yet.
     return {
       polling: Boolean(running && botUsername && !identityError),
+      mode: botUsername && !identityError ? mode : 'offline',
       username: botUsername,
       error: identityError,
       errorCode: lastErrorCode,
     };
   }
 
-  return { start, stop, api, handleUpdate, getBotUsername: () => botUsername, getStatus };
+  return {
+    start,
+    stop,
+    api,
+    handleUpdate,
+    getBotUsername: () => botUsername,
+    getStatus,
+    webhookSecret,
+    webhookPath,
+    verifyWebhookSecret,
+  };
 }
 
 export function escapeHtml(value) {
