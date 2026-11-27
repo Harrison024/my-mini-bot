@@ -233,7 +233,7 @@ const lastReply = () => [...sent4].reverse().find((s) => s.method === 'sendMessa
 const say = async (id, text, updateId) => {
   await bot4.handleUpdate({
     update_id: updateId,
-    message: { message_id: updateId, chat: { id }, from: { id, first_name: 'Tester' }, text },
+    message: { message_id: updateId, chat: { id, type: 'private' }, from: { id, first_name: 'Tester' }, text },
   });
 };
 
