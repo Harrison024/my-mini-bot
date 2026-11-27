@@ -196,14 +196,14 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
     if (result.isNew) {
       lines.push(
         '🎉 <b>Congratulations, your account is activated!</b>',
-        `A welcome balance of <b>${result.bonus.toLocaleString('en-US')} ${USD}</b> has been added to your COINVERA account.`,
+        `A welcome balance of <b>${result.bonus.toLocaleString('en-US')} ${UNIT}</b> has been added to your COINVERA account.`,
       );
     } else {
       lines.push('👋 <b>Welcome back to COINVERA</b>');
     }
     lines.push(
       '',
-      `💎 Active balance: <b>${Number(user.active_balance).toLocaleString('en-US', { minimumFractionDigits: 2 })} ${USD}</b>`,
+      `💎 Active balance: <b>${Number(user.active_balance).toLocaleString('en-US', { minimumFractionDigits: 2 })} ${UNIT}</b>`,
       `⭐ Active USD: <b>${user.points.toLocaleString('en-US')}</b>`,
       `🆔 Telegram ID: <code>${escapeHtml(String(user.telegram_id))}</code>`,
       `🔑 Referral code: <code>${user.referral_code}</code>`,
@@ -230,7 +230,7 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
     await sendMessage(chatId, [
       '🏠 <b>COINVERA Home</b>',
       '',
-      `💎 Active balance: <b>${Number(user.active_balance).toLocaleString('en-US', { minimumFractionDigits: 2 })} ${USD}</b>`,
+      `💎 Active balance: <b>${Number(user.active_balance).toLocaleString('en-US', { minimumFractionDigits: 2 })} ${UNIT}</b>`,
       `⭐ Active USD: <b>${user.points.toLocaleString('en-US')}</b>`,
       `🎯 Tasks completed: <b>${summary.tasksCompleted}</b>`,
       `🤝 Successful referrals: <b>${referrals.count}</b>`,
@@ -249,7 +249,7 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
       `<b>${Number(user.active_balance).toLocaleString('en-US', { minimumFractionDigits: 2 })} ${UNIT}</b>`,
       '',
       `⭐ Active Points: <b>${user.points.toLocaleString('en-US')}</b>`,
-      `🔓 Withdrawable from: <b>${MIN_WITHDRAWAL.toLocaleString('en-US')} ${USD}</b>`,
+      `🔓 Withdrawable from: <b>${MIN_WITHDRAWAL.toLocaleString('en-US')} ${UNIT}</b>`,
       '',
       'your active COINVERA USD reward is a withdrawable currency. meet up the connect wallet requirements and your Withdrawal requests will be reviewed and paid to your connected wallet.',
     ];
