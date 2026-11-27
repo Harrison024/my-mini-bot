@@ -611,6 +611,9 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
     return false;
   }
 
+  // Guards the 409 recovery below so a stuck competitor cannot make us hammer Telegram.
+  let lastConflictFix = 0;
+
   async function start() {
     running = true;
     while (running) {
@@ -633,6 +636,16 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
       }
       const response = await api('getUpdates', { offset, timeout: 25, allowed_updates: ['message', 'callback_query'] }, 35000);
       if (!response.ok) {
+        // 409 Conflict means something else already owns this token's updates: a
+        // leftover webhook or a second copy of the bot polling the same BOT_TOKEN.
+        // Re-clearing the webhook recovers from a webhook left by another host; a
+        // competing poller keeps answering until that copy is stopped.
+        if (lastErrorCode === 409 && Date.now() - lastConflictFix > 60000) {
+          lastConflictFix = Date.now();
+          log('[bot] getUpdates conflict (409) — a webhook or another copy of this bot owns the token; clearing webhook');
+          const cleared = await api('deleteWebhook', { drop_pending_updates: false });
+          log(cleared.ok ? '[bot] webhook cleared after conflict' : `[bot] webhook clear failed: ${cleared.description || 'unknown'}`);
+        }
         await sleep(lastErrorCode === 429 ? 1000 : 4000);
         continue;
       }
