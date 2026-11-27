@@ -96,6 +96,10 @@ try {
   check('stylesheet served', css.status === 200);
   const client = await fetch(`${BASE}/app.js`);
   check('client script served', client.status === 200);
+  check(
+    'every view section is a sibling (home closes before balance)',
+    /id="view-home"[\s\S]*?<\/section>[\s\S]*?id="view-balance"/.test(html),
+  );
 
   console.log('\n[2] automatic registration + signup bonus');
   const first = await api('/api/session');
