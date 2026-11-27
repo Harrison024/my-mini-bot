@@ -6,7 +6,7 @@ export const SIGNUP_MIN = 5000;
 export const SIGNUP_MAX = 10000;
 export const REFERRAL_REWARD_POINTS = 500;
 export const MIN_WITHDRAWAL = 1000;
-export const UNIT = 'ACTIVE';
+export const UNIT = 'USD';
 
 function randomSignupBonus() {
   const steps = Math.floor((SIGNUP_MAX - SIGNUP_MIN) / 50);
