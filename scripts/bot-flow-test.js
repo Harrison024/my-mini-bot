@@ -138,7 +138,12 @@ try {
 }
 
 console.log('[5] webhook delivery wins the token back from a competing poller');
-const bot2 = botModule.createBot({ token: 'test-token', getWebAppUrl: () => 'https://example.com', log: () => {} });
+const bot2 = botModule.createBot({
+  token: 'test-token',
+  getWebAppUrl: () => 'https://example.com',
+  getVerifiedOrigin: () => 'https://example.com',
+  log: () => {},
+});
 const sent2 = [];
 globalThis.fetch = async (url, options) => {
   const method = String(url).split('/').pop();
@@ -170,6 +175,38 @@ check('no getUpdates while a webhook is active', !sent2.some((s) => s.method ===
 check('webhook secret verified', bot2.verifyWebhookSecret(bot2.webhookSecret) === true);
 check('wrong webhook secret rejected', bot2.verifyWebhookSecret('not-the-secret') === false);
 check('status reports webhook mode', bot2.getStatus().mode === 'webhook', bot2.getStatus().mode);
+
+console.log('[6] no guessed webhook address without a verified origin');
+// A hardcoded fallback once pointed Telegram at a dead domain, so every update was
+// delivered into nothing and the bot looked broken. Only a verified origin may be used.
+const bot3 = botModule.createBot({
+  token: 'test-token',
+  getWebAppUrl: () => 'https://stale.invalid',
+  getVerifiedOrigin: () => null,
+  webhookWaitMs: 200,
+  log: () => {},
+});
+const sent3 = [];
+globalThis.fetch = async (url, options) => {
+  const method = String(url).split('/').pop();
+  let payload = {};
+  try {
+    payload = options?.body ? JSON.parse(options.body) : {};
+  } catch {
+    payload = {};
+  }
+  sent3.push({ method, payload });
+  return { ok: true, status: 200, json: async () => ({ ok: true, result: { username: 'CoinveraOfficialBot' } }) };
+};
+try {
+  await Promise.race([bot3.start().catch(() => {}), new Promise((resolve) => setTimeout(resolve, 1500))]);
+} finally {
+  bot3.stop();
+  globalThis.fetch = realFetch;
+}
+check('never registers a guessed webhook', !sent3.some((s) => s.method === 'setWebhook'));
+check('clears any stale webhook instead', sent3.some((s) => s.method === 'deleteWebhook'));
+check('falls back to polling', bot3.getStatus().mode === 'polling', bot3.getStatus().mode);
 
 fs.rmSync(dataDir, { recursive: true, force: true });
 
