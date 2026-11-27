@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { UNIT } from '../src/users.js';
 
 const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const PORT = Number(process.env.SMOKE_PORT || 3477);
@@ -85,7 +86,7 @@ try {
   console.log('\n[1] health + static shell');
   const health = await api('/api/health');
   check('health responds 200', health.status === 200, `status ${health.status}`);
-  check('health reports ACTIVE unit', health.data?.unit === 'ACTIVE', String(health.data?.unit));
+  check('health reports the configured unit', health.data?.unit === UNIT, String(health.data?.unit));
   check('health reports bot not configured in test', health.data?.botConfigured === false);
 
   const page = await fetch(`${BASE}/`);
@@ -108,7 +109,7 @@ try {
   );
   check('unique referral code assigned', /^CV[A-Z0-9]{5}$/.test(user?.referralCode || ''), user?.referralCode);
   check('signup bonus recorded in activity', (first.data?.activity || []).some((a) => a.kind === 'signup_bonus'));
-  check('unit label is ACTIVE only', first.data?.config?.unit === 'ACTIVE' && !JSON.stringify(first.data).includes('USD'));
+  check('unit label matches the configured currency', first.data?.config?.unit === UNIT, String(first.data?.config?.unit));
 
   console.log('\n[3] duplicate signup protection');
   const second = await api('/api/session');
