@@ -330,7 +330,7 @@ function renderAdmin() {
 function render() {
   const { user, activity, summary, config } = state.data;
 
-  $('preview-banner').classList.toggle('hidden', !config.preview);
+  // The BOT_TOKEN setup note is never shown in the app; it belongs in Settings only.
 
   // home
   $('home-name').textContent = user.displayName || 'COINVERA user';

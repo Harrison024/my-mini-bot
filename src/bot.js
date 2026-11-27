@@ -208,7 +208,7 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
       `🆔 Telegram ID: <code>${escapeHtml(String(user.telegram_id))}</code>`,
       `🔑 Referral code: <code>${user.referral_code}</code>`,
       '',
-      'Active is your reward balance: it becomes withdrawable once you've created an account with us, meet the requirements and payout requests,then it would be reviewed before they are sent to your connected wallet.',
+      'Active is your reward balance: it becomes withdrawable once you create an account with us, meet the requirements and payout requests. Each request is reviewed before it is sent to your connected wallet.',
       '',
       `🔗 <b>Open COINVERA:</b> <a href="${webAppUrl()}">${webAppUrl()}</a>`,
       '<i>If the button does not open, tap the link above — it works in every Telegram version.</i>',
@@ -303,7 +303,10 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
       `Available: <b>${balance.toLocaleString('en-US')} ${UNIT}</b>`,
       `Minimum: <b>${MIN_WITHDRAWAL.toLocaleString('en-US')} ${UNIT}</b>`,
       '',
-      'Send the amount you want to withdraw, or /cancel to stop.',
+      'Send the amount you want to withdraw as a number — for example <code>1500</code>.',
+      'Then send the <b>public wallet address</b> that should receive the payout.',
+      '',
+      '/cancel stops the request at any time.',
     ].join('\n'), { reply_markup: keyboard() });
   }
 
@@ -479,7 +482,7 @@ export function createBot({ token, getWebAppUrl, log = console.log }) {
         pendingWithdraw.set(String(from.id), { step: 'address', amount });
         const hint = user.wallet_address
           ? `Your linked wallet is <code>${escapeHtml(user.wallet_address)}</code> — send it again, or send a different public address.`
-          : 'Send the public wallet address that should receive the payout.';
+          : 'Now send the <b>public wallet address</b> that should receive the payout — for example <code>0x…</code> (EVM), <code>T…</code> (TRON) or <code>EQ…</code> / <code>UQ…</code> (TON).';
         await sendMessage(chatId, [
           `💸 <b>${amount.toLocaleString('en-US')} ${UNIT}</b> requested`,
           '',

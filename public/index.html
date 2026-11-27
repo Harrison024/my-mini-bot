@@ -11,10 +11,6 @@
 <body>
 <div class="orbs" aria-hidden="true"><span class="orb orb-1"></span><span class="orb orb-2"></span></div>
 
-<div id="preview-banner" class="preview-banner hidden">
-  Preview mode — add <b>BOT_TOKEN</b> in Settings → Environment variables to connect the bot.
-</div>
-
 <div id="guest-banner" class="preview-banner hidden">
   Guest session — open COINVERA from the bot to link your Telegram account and keep your rewards.
 </div>
@@ -63,7 +59,6 @@
         <div class="hero-value"><span id="home-balance">0</span><span class="unit">USD</span></div>
         <p class="hero-sub"><span id="home-points">0</span> Active Points earned</p>
         <div class="hero-actions">
-          <a class="btn gold" href="https://t.me/CoinveraOfficialBot" target="_blank" rel="noopener" data-bot-link>Withdraw in bot</a>
           <button class="btn ghost" type="button" data-go="tasks">Earn more</button>
         </div>
       </div>
@@ -100,10 +95,6 @@
 
       <div class="card hero compact">
         <div class="hero-value"><span id="balance-value">0</span><span class="unit">USD</span></div>
-        <p class="hero-sub">Withdraw in the bot</p>
-        <div class="hero-actions">
-          <a class="btn gold" href="https://t.me/CoinveraOfficialBot" target="_blank" rel="noopener" data-bot-link>Open the bot to withdraw</a>
-        </div>
       </div>
 
       <div class="card">
@@ -121,7 +112,7 @@
         <ul class="list" id="balance-activity"></ul>
       </div>
 
-      <p class="fineprint">Wallet linking and withdrawals happen in the COINVERA bot chat — tap “Withdraw in bot”. COINVERA never stores your data.</p>
+      <p class="fineprint">Wallet linking and withdrawals are handled in the COINVERA bot chat. COINVERA never stores your data.</p>
     </section>
 
     <section class="view" id="view-tasks" hidden>
