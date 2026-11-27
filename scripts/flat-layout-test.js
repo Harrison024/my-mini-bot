@@ -10,13 +10,17 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { UNIT } from '../src/users.js';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const PORT = Number(process.env.FLAT_PORT || 3488);
 const BASE = `http://127.0.0.1:${PORT}`;
 const flatDir = fs.mkdtempSync(path.join(os.tmpdir(), 'coinvera-flat-'));
+
+// Point DATA_DIR outside the checkout before importing the app modules, so
+// src/db.js does not create data/ in the repository while the test runs.
+process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'coinvera-flat-unit-'));
+const { UNIT } = await import(pathToFileURL(path.join(rootDir, 'src', 'users.js')).href);
 
 const files = [
   ['server.js', 'server.js'],
