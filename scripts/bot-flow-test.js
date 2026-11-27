@@ -208,6 +208,65 @@ check('never registers a guessed webhook', !sent3.some((s) => s.method === 'setW
 check('clears any stale webhook instead', sent3.some((s) => s.method === 'deleteWebhook'));
 check('falls back to polling', bot3.getStatus().mode === 'polling', bot3.getStatus().mode);
 
+console.log('[7] withdrawal replies: wallet first, then review confirmation');
+// The user asked for exactly two outcomes: tell them to connect a wallet first, or
+// confirm the request was received and will be paid after review.
+const bot4 = botModule.createBot({
+  token: 'test-token',
+  getWebAppUrl: () => 'https://example.com',
+  getVerifiedOrigin: () => 'https://example.com',
+  log: () => {},
+});
+const sent4 = [];
+globalThis.fetch = async (url, options) => {
+  const method = String(url).split('/').pop();
+  let payload = {};
+  try {
+    payload = options?.body ? JSON.parse(options.body) : {};
+  } catch {
+    payload = {};
+  }
+  sent4.push({ method, payload });
+  return { ok: true, status: 200, json: async () => ({ ok: true, result: { message_id: 1 } }) };
+};
+const lastReply = () => [...sent4].reverse().find((s) => s.method === 'sendMessage')?.payload.text || '';
+const say = async (id, text, updateId) => {
+  await bot4.handleUpdate({
+    update_id: updateId,
+    message: { message_id: updateId, chat: { id }, from: { id, first_name: 'Tester' }, text },
+  });
+};
+
+// 1. No wallet linked yet.
+sent4.length = 0;
+await say(990004, 'Withdraw', 71);
+const noWallet = lastReply();
+check('no-wallet reply says there is no connected wallet', /no connected wallet/i.test(noWallet), noWallet.slice(0, 100));
+check('no-wallet reply sends them to Connect Wallet', /Connect Wallet/i.test(noWallet));
+
+// 2. Wallet linked: the request is taken and confirmed for review.
+const payer = users.getOrCreateUser({ id: '990005', first_name: 'Payer', username: 'payer' }).user;
+users.connectWallet(payer.id, { address: ADDRESS, network: 'EVM' });
+const payerBefore = Number(users.getUserById(payer.id).active_balance || 0);
+if (payerBefore >= MIN_WITHDRAWAL) {
+  sent4.length = 0;
+  await say(990005, 'Withdraw', 72);
+  check('connected wallet opens the amount step', /Send the amount/i.test(lastReply()), lastReply().slice(0, 100));
+  sent4.length = 0;
+  await say(990005, String(MIN_WITHDRAWAL), 73);
+  const done = lastReply();
+  check('connected wallet gets "withdrawal received"', /Withdrawal received/i.test(done), done.slice(0, 120));
+  check('reply promises review before payout', /processed and sent to you after review/i.test(done), done.slice(0, 200));
+  check(
+    'balance debited for the request',
+    Number(users.getUserById(payer.id).active_balance) === payerBefore - MIN_WITHDRAWAL,
+    String(users.getUserById(payer.id).active_balance),
+  );
+} else {
+  console.log(`  skip  connected-wallet flow — balance ${payerBefore} is below the ${MIN_WITHDRAWAL} ${UNIT} minimum`);
+}
+globalThis.fetch = realFetch;
+
 fs.rmSync(dataDir, { recursive: true, force: true });
 
 console.log(`\n${fail === 0 ? 'Bot flow test passed' : 'Bot flow test FAILED'} — ${pass} passed, ${fail} failed.`);
