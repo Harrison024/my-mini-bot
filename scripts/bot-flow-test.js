@@ -88,6 +88,55 @@ check('wallet unlinked', off.ok === true && off.user.wallet_address === null);
 const noAddress = users.requestWithdrawal(user.id, { amount: MIN_WITHDRAWAL, address: '', network: 'EVM' });
 check('missing payout address rejected', noAddress.ok === false && noAddress.error === 'wallet_required', noAddress.error);
 
+console.log('[4] /start answers instead of crashing');
+// The bot answered nothing in production while every test passed: a template
+// literal used an undefined identifier and the handler threw before replying.
+// This exercises the real handler with Telegram stubbed out.
+const botModule = await import(pathToFileURL(path.join(srcDir, 'bot.js')).href);
+const sent = [];
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (url, options) => {
+  const method = String(url).split('/').pop();
+  let payload = {};
+  try {
+    payload = options?.body ? JSON.parse(options.body) : {};
+  } catch {
+    payload = {};
+  }
+  sent.push({ method, payload });
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({ ok: true, result: { message_id: 1, username: 'CoinveraOfficialBot' } }),
+  };
+};
+try {
+  const bot = botModule.createBot({ token: 'test-token', getWebAppUrl: () => 'https://example.com' });
+  let threw = null;
+  try {
+    await bot.handleUpdate({
+      update_id: 1,
+      message: {
+        message_id: 1,
+        date: 0,
+        chat: { id: 990001, type: 'private' },
+        from: { id: 990001, first_name: 'Bot', username: 'botflow' },
+        text: '/start',
+      },
+    });
+  } catch (error) {
+    threw = error.message;
+  }
+  check('/start handler does not throw', threw === null, threw || '');
+  const replies = sent.filter((s) => s.method === 'sendMessage' && String(s.payload.chat_id) === '990001');
+  check('/start sends a chat reply', replies.length > 0, `${replies.length} sendMessage calls`);
+  const text = replies.map((r) => r.payload.text || '').join('\n');
+  check('reply shows the reward unit', text.includes(UNIT), UNIT);
+  check('reply contains no undefined value', !/undefined/.test(text));
+} finally {
+  globalThis.fetch = realFetch;
+}
+
 fs.rmSync(dataDir, { recursive: true, force: true });
 
 console.log(`\n${fail === 0 ? 'Bot flow test passed' : 'Bot flow test FAILED'} — ${pass} passed, ${fail} failed.`);
