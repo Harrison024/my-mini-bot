@@ -293,6 +293,16 @@ export function createBot({ token, getWebAppUrl, getVerifiedOrigin, webhookWaitM
   // Withdrawals are a bot-chat flow only: the Mini App has no endpoint for them.
   async function handleWithdraw(chatId, from) {
     const user = getUserByTelegramId(from.id) || (await register(from, null)).user;
+    // A payout needs somewhere to go, so the wallet check comes before anything else.
+    if (!user.wallet_address) {
+      await sendMessage(chatId, [
+        '⚠️ <b>There is no connected wallet.</b>',
+        '',
+        'Please go through <b>🔗 Connect Wallet</b> first and link your public wallet address.',
+        'After that, tap 💸 Withdraw again and your payout will be sent to that wallet.',
+      ].join('\n'), { reply_markup: keyboard() });
+      return;
+    }
     const balance = Number(user.active_balance || 0);
     if (balance < MIN_WITHDRAWAL) {
       await sendMessage(chatId, [
@@ -311,9 +321,9 @@ export function createBot({ token, getWebAppUrl, getVerifiedOrigin, webhookWaitM
       '',
       `Available: <b>${balance.toLocaleString('en-US')} ${UNIT}</b>`,
       `Minimum: <b>${MIN_WITHDRAWAL.toLocaleString('en-US')} ${UNIT}</b>`,
+      `Payout wallet: <code>${escapeHtml(user.wallet_address)}</code>`,
       '',
       'Send the amount you want to withdraw as a number — for example <code>1500</code>.',
-      'Then send the <b>public wallet address</b> that should receive the payout.',
       '',
       '/cancel stops the request at any time.',
     ].join('\n'), { reply_markup: keyboard() });
@@ -488,17 +498,30 @@ export function createBot({ token, getWebAppUrl, getVerifiedOrigin, webhookWaitM
           await sendMessage(chatId, `⚠️ That is more than your balance of <b>${Number(user.active_balance || 0).toLocaleString('en-US')} ${UNIT}</b>. Send a smaller amount or /cancel.`, { reply_markup: keyboard() });
           return;
         }
-        pendingWithdraw.set(String(from.id), { step: 'address', amount });
-        const hint = user.wallet_address
-          ? `Your linked wallet is <code>${escapeHtml(user.wallet_address)}</code> — send it again, or send a different public address.`
-          : 'Now send the <b>public wallet address</b> that should receive the payout — for example <code>0x…</code> (EVM), <code>T…</code> (TRON) or <code>EQ…</code> / <code>UQ…</code> (TON).';
+        // The connected wallet is the payout destination, so the amount is enough.
+        const result = requestWithdrawal(user.id, { amount, address: user.wallet_address });
+        pendingWithdraw.delete(String(from.id));
+        if (!result.ok) {
+          const map = {
+            amount_below_minimum: `Minimum withdrawal is ${MIN_WITHDRAWAL.toLocaleString('en-US')} ${UNIT}.`,
+            insufficient_balance: 'That amount is more than your current balance.',
+            amount_invalid: 'That amount is not valid.',
+            wallet_required: 'There is no connected wallet. Go through Connect Wallet first.',
+            address_invalid: 'Your connected wallet address is not valid. Connect the wallet again.',
+            looks_like_secret: 'That looks like a secret — never send private keys or recovery phrases.',
+          };
+          await sendMessage(chatId, `⚠️ ${map[result.error] || 'Could not submit that request right now.'}`, { reply_markup: keyboard() });
+          return;
+        }
         await sendMessage(chatId, [
-          `💸 <b>${amount.toLocaleString('en-US')} ${UNIT}</b> requested`,
+          '✅ <b>Withdrawal received</b>',
           '',
-          hint,
+          `Amount: <b>${amount.toLocaleString('en-US')} ${UNIT}</b>`,
+          `To: <code>${escapeHtml(user.wallet_address)}</code>`,
           '',
-          'Never send a private key or recovery phrase — COINVERA will never ask for one.',
+          'Your withdrawal has been received and will be processed and sent to you after review.',
         ].join('\n'), { reply_markup: keyboard() });
+        await forwardToAdmin(from, `${amount} ${UNIT} → ${user.wallet_address}`, 'withdrawal');
         return;
       }
 
@@ -520,7 +543,7 @@ export function createBot({ token, getWebAppUrl, getVerifiedOrigin, webhookWaitM
           amount_below_minimum: `Minimum withdrawal is ${MIN_WITHDRAWAL.toLocaleString('en-US')} ${UNIT}.`,
           insufficient_balance: 'That amount is more than your current balance.',
           amount_invalid: 'That amount is not valid.',
-          wallet_required: 'Send a payout address first.',
+          wallet_required: 'There is no connected wallet. Go through Connect Wallet first.',
           address_invalid: 'That payout address is not valid.',
           looks_like_secret: 'That looks like a secret — never send private keys or recovery phrases.',
         };
@@ -528,13 +551,13 @@ export function createBot({ token, getWebAppUrl, getVerifiedOrigin, webhookWaitM
         return;
       }
       await sendMessage(chatId, [
-        '✅ <b>Withdrawal requested</b>',
+        '✅ <b>Withdrawal received</b>',
         '',
         `Amount: <b>${Number(step.amount).toLocaleString('en-US')} ${UNIT}</b>`,
         `To: <code>${escapeHtml(parsed.address)}</code>`,
         `Network: <b>${parsed.network}</b>`,
         '',
-        'Our team reviews every request before payout. You will be notified here when it is processed.',
+        'Your withdrawal has been received and will be processed and sent to you after review.',
       ].join('\n'), { reply_markup: keyboard() });
       await forwardToAdmin(from, `${step.amount} ${UNIT} → ${parsed.address} (${parsed.network})`, 'withdrawal');
       return;
