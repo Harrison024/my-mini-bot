@@ -137,6 +137,40 @@ try {
   globalThis.fetch = realFetch;
 }
 
+console.log('[5] webhook delivery wins the token back from a competing poller');
+const bot2 = botModule.createBot({ token: 'test-token', getWebAppUrl: () => 'https://example.com', log: () => {} });
+const sent2 = [];
+globalThis.fetch = async (url, options) => {
+  const method = String(url).split('/').pop();
+  let payload = {};
+  try {
+    payload = options?.body ? JSON.parse(options.body) : {};
+  } catch {
+    payload = {};
+  }
+  sent2.push({ method, payload });
+  return { ok: true, status: 200, json: async () => ({ ok: true, result: { username: 'CoinveraOfficialBot' } }) };
+};
+let settled = 'timeout';
+try {
+  settled = await Promise.race([
+    bot2.start().then(() => 'returned'),
+    new Promise((resolve) => setTimeout(() => resolve('still-polling'), 2500)),
+  ]);
+} finally {
+  bot2.stop();
+  globalThis.fetch = realFetch;
+}
+check('webhook mode ends the polling loop', settled === 'returned', settled);
+check(
+  'setWebhook targets this deployment',
+  sent2.some((s) => s.method === 'setWebhook' && s.payload.url === 'https://example.com/api/telegram/webhook'),
+);
+check('no getUpdates while a webhook is active', !sent2.some((s) => s.method === 'getUpdates'));
+check('webhook secret verified', bot2.verifyWebhookSecret(bot2.webhookSecret) === true);
+check('wrong webhook secret rejected', bot2.verifyWebhookSecret('not-the-secret') === false);
+check('status reports webhook mode', bot2.getStatus().mode === 'webhook', bot2.getStatus().mode);
+
 fs.rmSync(dataDir, { recursive: true, force: true });
 
 console.log(`\n${fail === 0 ? 'Bot flow test passed' : 'Bot flow test FAILED'} — ${pass} passed, ${fail} failed.`);
