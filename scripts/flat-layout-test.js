@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { UNIT } from '../src/users.js';
 
 const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const PORT = Number(process.env.FLAT_PORT || 3488);
@@ -91,7 +92,7 @@ try {
   const health = await fetch(`${BASE}/api/health`);
   const healthBody = await health.json().catch(() => ({}));
   check('health responds 200', health.status === 200, `status ${health.status}`);
-  check('health reports ACTIVE unit', healthBody.unit === 'ACTIVE', String(healthBody.unit));
+  check('health reports the configured unit', healthBody.unit === UNIT, String(healthBody.unit));
 
   const page = await fetch(`${BASE}/`);
   const html = await page.text();
